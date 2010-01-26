@@ -1,0 +1,36 @@
+#
+# Include file to build preprocessed HTML documents
+#
+# Needs the following vars
+#
+# TARGETS : list of source files with a '.pub' suffix added (so, should end in
+#           '.htm.pub'.
+# PPC_DIR : the directory where this file resides
+#
+# PHP : the command to launch the PHP CLI interpreter (usually 'php')
+#
+#===========================================================================
+
+PPC = $(PHP) $(PPC_DIR)/ppc.php
+XLATE_IMG = $(PHP) $(PPC_DIR)/xlate_img.php
+
+#-----------------
+
+.PHONY: clean_pub
+
+all: $(TARGETS)
+
+clean_pub:
+	/bin/rm -rf $(TARGETS) _pub
+
+#----------------
+
+%.htm.pub: %.htm
+	@[ -d ppc ] || mkdir ppc
+	$(PPC) $<
+	@[ -d _pub ] || mkdir _pub
+	$(XLATE_IMG) <ppc/_$< >_pub/$@.htm
+	@touch $@
+	@/bin/rm -rf ppc
+
+#----------------
