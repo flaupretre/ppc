@@ -12,7 +12,6 @@
 #===========================================================================
 
 PPC = $(PHP) $(PPC_DIR)/ppc.php
-XLATE_IMG = $(PHP) $(PPC_DIR)/xlate_img.php
 
 #-----------------
 
@@ -24,13 +23,15 @@ clean_pub:
 	/bin/rm -rf $(TARGETS) _pub
 
 #----------------
+# For historic reasons, ppc writes in a subdir named 'ppc'.
+# TODO : Add option to ppc to set subdir name
 
 %.htm.pub: %.htm
 	@[ -d ppc ] || mkdir ppc
 	$(PPC) $<
 	@[ -d _pub ] || mkdir _pub
-	$(XLATE_IMG) <ppc/_$< >_pub/$@.htm
+	mv ppc/_$< _pub/$@.htm
 	@touch $@
-	@/bin/rm -rf ppc
+	@rmdir ppc
 
 #----------------
