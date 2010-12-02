@@ -181,8 +181,8 @@ return $subject;
 
 function correct_html($buf)
 {
-$buf=str_replace('</p>','',$buf);
 $buf=str_replace('<p/>','<p>',$buf);
+#$buf=str_replace('</p>','',$buf);
 $buf=str_replace("\r",'',$buf);
 
 $buf=replace_all(" \n","\n",$buf);
