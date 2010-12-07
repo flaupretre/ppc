@@ -220,8 +220,6 @@ return str_replace("\n",'</p><p>',htmlspecialchars($str));
 
 function display_html($sections)
 {
-echo '<p>{toc}</p><p>&nbsp;</p><hr/>';
-
 foreach ($sections as $section)
 	{
 	if (count($section->funcs)==0) continue;
