@@ -54,6 +54,20 @@ $this->funcs=array();
 
 public function add_func($f)
 {
+foreach($GLOBALS['exclude_prefixes'] as $prefix)
+	{
+	if (starts_with($f->name,$prefix)) return;
+	}
+
+foreach($GLOBALS['clear_prefixes'] as $prefix)
+	{
+	if (starts_with($f->name,$prefix))
+		{
+		$f->name=substr($f->name,strlen($prefix));
+		break;
+		}
+	}
+
 $this->funcs[$f->name]=$f;
 }
 
@@ -152,7 +166,6 @@ foreach(file($path) as $line)
 			if ($line=='') break;
 			if ($line{0}=='$') // New arg;
 				{
-				$line=trim($line,'$');
 				$a=explode(':',$line,2);
 				if (count($a)==2) $cfunc->new_arg($a[0],$a[1]);
 				}
@@ -183,17 +196,15 @@ foreach(file($path) as $line)
 		case NAME:
 			if (strpos($line,'()')!==false)
 				{
-				
 				$cfunc->name=trim($line,"() \t");
-				if ($cfunc->name{0} != '_') $csection->add_func($cfunc);
+				$csection->add_func($cfunc);
 				$state=OUT;
-				$cfunc=null;
 				}
 			break;
 		}
 	}
 
-foreach ($sections as $section) ksort($section->funcs);
+if ($GLOBALS['sort_flag']) foreach ($sections as $section) ksort($section->funcs);
 
 return $sections;
 }
@@ -213,6 +224,7 @@ echo '<p>{toc}</p><p>&nbsp;</p><hr/>';
 
 foreach ($sections as $section)
 	{
+	if (count($section->funcs)==0) continue;
 	echo '<h1>'.hstring($section->name)."</h1>\n";
 	foreach($section->funcs as $fname => $f)
 		{
@@ -245,14 +257,45 @@ foreach ($sections as $section)
 		echo "</table>\n";
 		echo '</td><td width=50>&nbsp;</td></tr></table>';
 		}
+	echo "\n";
 	}
+echo "\n";
 }
 
 //======================================== MAIN =================
 
-$doc=extract_doc($argv[1]);
+//--- Get options
 
-switch($argv[2])
+$sort_flag=false;
+$format='html';
+$exclude_prefixes=array();
+$clear_prefixes=array();
+
+$opts=getopt('se:c:f:');
+
+if (array_key_exists('e',$opts))
+	{
+	if (is_array($opts['e'])) $exclude_prefixes=$opts['e'];
+	else $exclude_prefixes[]=$opts['e'];
+	}
+
+if (array_key_exists('c',$opts))
+	{
+	if (is_array($opts['c'])) $clear_prefixes=$opts['c'];
+	else $clear_prefixes[]=$opts['c'];
+	}
+
+if (array_key_exists('f',$opts)) $format=$opts['f'];
+
+if (array_key_exists('s',$opts)) $sort_flags=true;
+
+//---- Extract doc from file
+
+$doc=extract_doc($argv[$argc-1]);
+
+//---- Format output
+
+switch($format)
 	{
 	case 'html':
 		display_html($doc);
