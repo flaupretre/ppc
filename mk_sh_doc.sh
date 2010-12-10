@@ -20,9 +20,9 @@ export PHP PPC_DIR SOURCE TARGET OPTIONS PPC XTRACT
 
 (
 echo '<p>{toc}</p><p>&nbsp;</p><hr/>'
-[ -f src/$TARGET.start.htm ] && cat src/$TARGET.start
+[ -f src/$TARGET.start.htm ] && cat src/$TARGET.start.htm
 $XTRACT $OPTIONS $SOURCE
-[ -f src/$TARGET.end.htm ] && cat src/$TARGET.end
+[ -f src/$TARGET.end.htm ] && cat src/$TARGET.end.htm
 ) >$TARGET.tmp
 
 PPC_DIR=. $PPC $TARGET.tmp
