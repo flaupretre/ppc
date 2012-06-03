@@ -214,7 +214,7 @@ return $buf;
 function rawify1($buf)
 {
 $buf=str_replace('</p>','',$buf);
-$buf=eregi_replace('<p[^>]*>','<br/>',$buf);
+$buf=preg_replace('/<p[^>]*>/i','<br/>',$buf);
 $buf=str_replace("\t",'&nbsp;&nbsp;&nbsp; ',$buf);
 return str_replace('  ','&nbsp; ',$buf);
 }
@@ -224,7 +224,7 @@ return str_replace('  ','&nbsp; ',$buf);
 function rawify($buf)
 {
 $output=str_replace("\r",'',rawify1($buf));
-$output=eregi_replace("<br[^>]*> *\n","<new line with break>",$output);
+$output=preg_replace(',<br[^>]*>\s*\n,i','<new line with break>',$output);
 $output=str_replace("\n",' ',$output);
 $output=str_replace("<new line with break>","\n",$output);
 $output=str_replace('&nbsp;',' ',$output);
@@ -571,7 +571,7 @@ function find_in_buf($buf,$start,$pattern,&$pos,&$result)
 if ($start >= strlen($buf)) return false;
 
 $buf2=substr($buf,$start);
-if (! eregi($pattern,$buf2,$regs)) return false;
+if (! preg_match($pattern,$buf2,$regs)) return false;
 $result=$regs[0];
 $pos=$start + strpos($buf2,$result);
 return true;
@@ -588,7 +588,7 @@ $static_buf=str_replace('[:note]','<u>Note:</u> ',$static_buf);
 
 function string_to_tocstring($string)
 {
-return ereg_replace("\r",'',ereg_replace("\n",' ',(quote_car(quote_car(strip_tags($string),"\""),"\$"))));
+return str_replace("\r",'',str_replace("\n",' ',(quote_car(quote_car(strip_tags($string),"\""),"\$"))));
 }
 //-------------------------------------------------------------------
 
@@ -606,14 +606,14 @@ $start_tag="";
 
 // Corps du texte
 
-if (find_in_buf($buf,0,"<body>",$cur_pos,$res))
+if (find_in_buf($buf,0,",<body>,i",$cur_pos,$res))
 	{
 	if (DEBUG) {echo "<p>Found <body> at position : $cur_pos\n"; flush();}
 	$cur_pos += 6;
 	}
 else
 	{
-	if (find_in_buf($buf,0,"</head>",$cur_pos,$res))
+	if (find_in_buf($buf,0,",</head>,i",$cur_pos,$res))
 		{
 		if (DEBUG) {echo "<p>Found </head> at position : $cur_pos\n"; flush();}
 		$cur_pos += 7;
@@ -629,10 +629,10 @@ while (true)
 	{
 	if (DEBUG) {echo "<p>cur_pos=$cur_pos\n"; flush();}
 	$start_pos=0;
-	if (! find_in_buf($buf,$cur_pos,'<h[0-9]',$start_pos,$res)) break;
+	if (! find_in_buf($buf,$cur_pos,',<h[0-9],i',$start_pos,$res)) break;
 	if (DEBUG) {echo "<p>Found tag " . substr($res,1) . " - pos=$start_pos\n"; flush();}
 	$level=$res{2};
-	if (! find_in_buf($buf,$start_pos,'</h' . $level . '>',$end_pos,$res))
+	if (! find_in_buf($buf,$start_pos,',</h' . $level . '>,i',$end_pos,$res))
 		{
 		echo "ERROR : Impossible de trouver la fin du chapitre (niveau $level)\n";
 		echo "Fichier source : $source\n";
@@ -648,7 +648,7 @@ while (true)
 	for ($i=0;$i<$level;$i++) $tag_string .= "." . $tag[$i];
 	$tag_string=substr($tag_string,1);
 	if ($start_tag == "") $start_tag=$tag_string;
-	find_in_buf($buf,$start_pos,'>',$end_start_pos,$res);
+	find_in_buf($buf,$start_pos,',>,',$end_start_pos,$res);
 	if (DEBUG) {echo "<p>end_start_pos=$end_start_pos\n"; flush();}
 	$rstring="$tag_string<a name=\"p$tag_string\">&nbsp;</a>- ";
 	$buf=substr_replace($buf,$rstring,$end_start_pos+1,0);
