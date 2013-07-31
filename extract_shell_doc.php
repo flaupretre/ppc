@@ -194,9 +194,13 @@ foreach(file($path) as $line)
 			break;
 
 		case NAME:
-			if (strpos($line,'()')!==false)
+			// 2 possible syntaxes : 'func()' or 'function func'. 2nd is better
+			$funcname=null;
+			if (strpos($line,'()')!==false) $funcname=trim($line,"() \t");
+			if (strpos($line,'function ')===0) $funcname=trim(substr($line,9),"() \t");
+			if (!is_null($funcname))
 				{
-				$cfunc->name=trim($line,"() \t");
+				$cfunc->name=$funcname;
 				$csection->add_func($cfunc);
 				$state=OUT;
 				}
@@ -209,7 +213,7 @@ if ($GLOBALS['sort_flag']) foreach ($sections as $section) ksort($section->funcs
 return $sections;
 }
 
-//----------------
+//------ HTML ----------
 
 function hstring($str)
 {
@@ -260,6 +264,58 @@ foreach ($sections as $section)
 echo "\n";
 }
 
+//------- MARKDOWN ---------
+
+function mstring($str)
+{
+$str=str_replace("\n","\n\n",$str);
+$str=str_replace('_','\_',$str);
+$str=str_replace('<','&lt;',$str);
+return $str;
+}
+
+//----------------
+
+function display_md($sections)
+{
+foreach ($sections as $section)
+	{
+	if (count($section->funcs)==0) continue;
+	echo '# '.mstring($section->name)." #\n";
+	foreach($section->funcs as $fname => $f)
+		{
+		echo '## '.mstring($fname)." ##\n";
+		echo '**'.mstring($f->summary)."**\n\n";
+		echo mstring($f->text)."\n\n";
+		echo "<table border=1 cellpadding=5 style=\"border-collapse: collapse;\" width=100%>\n";
+		echo '<tr><td align=center width=50><b><i>Args</i></b></td>';
+		if (count($f->args))
+			{
+			echo '<td style="padding: 0;"><table border=1 cellpadding=5'
+				.' style="border-collapse: collapse;" width=100%>';
+			foreach($f->args as $aname => $adoc)
+				{
+				echo '<tr><td width=20 align=center>'.hstring($aname).'</td><td>'.hstring($adoc)
+					."</td></tr>\n";
+				}
+			echo '</table>';
+			}
+		else echo "<td>None";
+		echo "</td></tr>\n";
+
+		echo '<tr><td align=center width=50><b><i>Returns</i></b></td><td>'.hstring($f->returns)
+			."</td></tr>\n";
+		
+		echo '<tr><td align=center width=50><b><i>Displays</i></b></td><td>'.hstring($f->displays)
+			."</td></tr>\n";
+		
+		echo "</table>\n";
+		}
+	echo "\n";
+	}
+echo "\n";
+}
+
 //======================================== MAIN =================
 
 //--- Get options
@@ -293,12 +349,6 @@ $doc=extract_doc($argv[$argc-1]);
 
 //---- Format output
 
-switch($format)
-	{
-	case 'html':
-		display_html($doc);
-		break;
-
-	default:
-		echo $argv[2].": Unknown output format\n";
-	}
+$f="display_$format";
+if (function_exists($f)) $f($doc);
+else echo $format.": Unknown output format\n";
