@@ -82,7 +82,7 @@ foreach(file($path) as $line)
 			if (starts_with($line,'Returns:'))
 				{
 				$state=self::RETURNS;
-				append_string($cfunc->returns,substr($line,8));
+				append_string($cfunc->returns,ltrim(substr($line,8)));
 				}
 			else
 				{
@@ -119,7 +119,7 @@ foreach(file($path) as $line)
 			if (!is_null($funcname))
 				{
 				$cfunc->name=$funcname;
-				$csection->add_func($cfunc);
+				if (!is_null($csection)) $csection->add_func($cfunc);
 				$state=self::OUT;
 				}
 			break;

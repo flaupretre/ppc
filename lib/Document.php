@@ -21,7 +21,28 @@ $this->sections=array();
 
 public function sort_functions()
 {
+echo "Sorting functions\n";
 foreach ($this->sections as $section) ksort($section->funcs);
+}
+
+//-----------
+
+public function open_page($path)
+{
+$fp=fopen($path,'w');
+if ($fp===false) throw new Exception("Cannot open $path for writing");
+if (!is_null($GLOBALS['global_header']))
+	fwrite($fp,file_get_contents($GLOBALS['global_header']));
+return $fp;
+}
+
+//-----------
+
+public function close_page($fp)
+{
+if (!is_null($GLOBALS['global_footer']))
+	fwrite($fp,file_get_contents($GLOBALS['global_footer']));
+fclose($fp);
 }
 
 //-----------
@@ -35,11 +56,13 @@ $this->$method($output_dir);
 }
 
 //-----------
+// Github wiki renderer.
+// Syntax: Github-flavored Markdown
 
-public function render_md($output_dir)
+public function render_gfm($output_dir)
 {
 $flinks=array();
-$mfp=fopen("$output_dir/Home.md",'w');
+$mfp=$this->open_page("$output_dir/Home.md");
 if (!is_null($GLOBALS['main_prefix']))
 	fwrite($mfp,file_get_contents($GLOBALS['main_prefix']));
 
@@ -53,8 +76,7 @@ foreach ($this->sections as $section)
 	$url=$section->fname();
 	fwrite($mfp,"###- [".$section->name."]($url)\n");
 	$fpath="$output_dir/$url.md";
-	$fp=fopen($fpath,'w');
-	fwrite($fp,'#'.mstring($section->name)."\n\n");
+	$fp=$this->open_page($fpath);
 	fwrite($fp,mstring($section->text)."\n");
 	if (count($section->funcs))
 		{
@@ -66,34 +88,34 @@ foreach ($this->sections as $section)
 				.'##'.mstring($fname)."\n"
 				.'**'.mstring($f->summary)."**\n"
 				."\n".mstring($f->text)."\n"
-				."####Arguments\n");
+				."\n####Arguments\n");
 			if (count($f->args))
 				{
 				foreach($f->args as $arg)
 					fwrite($fp,"- ".mstring($arg->name).": ".mstring($arg->text)."\n");
 				}
 			else fwrite($fp,"None\n");
-			fwrite ($fp,"####Returns\n".mstring($f->returns)."\n"
-				."####Displays\n".mstring($f->displays)."\n");
+			fwrite ($fp,"\n####Returns\n".mstring($f->returns)."\n"
+				."\n####Displays\n".mstring($f->displays)."\n");
 			}
 		}
-	fclose($fp);
+	$this->close_page($fp);
 	}
 
 //-- Finish main page
 
-fwrite($mfp,"\n\n-----------\n\n##[Function index](_index)\n\n");
+fwrite($mfp,"\n\n-----------\n\n##[Function index](Index)\n\n");
 if (!is_null($GLOBALS['main_suffix']))
 	fwrite($mfp,file_get_contents($GLOBALS['main_suffix']));
-fclose($mfp);
+$this->close_page($mfp);
 
 //-- Generate index
 
 ksort($flinks);
-$ifp=fopen("$output_dir/_index.md",'w');
+$ifp=$this->open_page("$output_dir/Index.md");
 fwrite($ifp,"#Function index\n\n---------\n\n");
 foreach($flinks as $fname => $url) fwrite($ifp,mstring("- [$fname]($url)\n"));
-fclose($ifp);
+$this->close_page($ifp);
 }
 
 //----------------
