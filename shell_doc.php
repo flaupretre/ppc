@@ -1,8 +1,7 @@
 <?php
 /*============================================================================
 *
-* Syntax: php <script> [-e  <string>]+ [-c <string>]+ [-S] [ -o <dir>] \
-*             [-f <format>] [-p <file>] [-s <file>] <source>
+* Syntax: php <script> [options] <sources>...
 *
 * -e <string>: exclude functions starting with <string>
 * -c <string>: Clear <string> prefix in function names
@@ -11,9 +10,12 @@
 * -f <format>: Output format (Default=md)
 * -p <file>: Put file at the beginning of main page
 * -e <file>: Put file at the end of main page
+* -H <file>: Global header
+* -F <file>: Global footer
 *
 *===========================================================================*/
 
+include(dirname(__FILE__).'/external/phool.phk');
 
 include(dirname(__FILE__).'/lib/functions.php');
 include(dirname(__FILE__).'/lib/Document.php');
@@ -27,25 +29,29 @@ include(dirname(__FILE__).'/lib/SH_Document.php');
 //--- Get options
 
 $sort_flag=false;
-$format='md';
+$format='gfm';
 $exclude_prefixes=array();
 $clear_prefixes=array();
-$main_prefix=$main_suffix=null;
+$main_prefix=$main_suffix=$global_footer=$global_header=null;
 $output_dir=null;
 
-foreach($opts=getopt('Se:c:f:o:p:s:') as $opt => $val)
+$args=PHO_Getopt::readPHPArgv();
+array_shift($args);
+list($options,$args2)=PHO_Getopt::getopt2($args,'Se:c:f:o:p:s:F:H:');
+foreach($options as $option)
 	{
+	list($opt,$val)=$option;
 	switch($opt)
 		{
 		case 'S':
-			$sort_flags=true;
+			$sort_flag=true;
 			break;
 		case 'e':
-			if (is_array($opts['e'])) $exclude_prefixes=$val;
+			if (is_array($val)) $exclude_prefixes=$val;
 			else $exclude_prefixes[]=$val;
 			break;
 		case 'c':
-			if (is_array($opts['c'])) $clear_prefixes=$val;
+			if (is_array($val)) $clear_prefixes=$val;
 			else $clear_prefixes[]=$val;
 			break;
 		case 'f':
@@ -60,6 +66,12 @@ foreach($opts=getopt('Se:c:f:o:p:s:') as $opt => $val)
 		case 's':
 			$main_suffix=$val;
 			break;
+		case 'F':
+			$global_footer=$val;
+			break;
+		case 'H':
+			$global_header=$val;
+			break;
 		}
 	}
 
@@ -68,7 +80,11 @@ $source=$argv[$argc-1];
 //---- Extract doc from file
 
 $doc=new SH_Document();
-$doc->read($source);
+foreach($args2 as $source)
+	{
+	PHO_Display::info("Reading file $source");
+	$doc->read($source);
+	}
 if ($sort_flag) $doc->sort_functions();
 
 //---- Format output
