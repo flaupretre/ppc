@@ -11,6 +11,13 @@ return ((strlen($str1) >= strlen($str2))&&(substr($str1,0,strlen($str2))===$str2
 
 //-------------------
 
+function is_comment($line)
+{
+return ((strlen($line)>0)&&($line{0}=='#'));
+}
+
+//-------------------
+
 function trim_comments($str)
 {
 return substr($str,2);
