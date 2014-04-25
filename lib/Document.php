@@ -62,60 +62,83 @@ $this->$method($output_dir);
 public function render_gfm($output_dir)
 {
 $flinks=array();
-$mfp=$this->open_page("$output_dir/Home.md");
+$docs=array('Home' => '');
 if (!is_null($GLOBALS['main_prefix']))
-	fwrite($mfp,file_get_contents($GLOBALS['main_prefix']));
+	$docs['Home']=file_get_contents($GLOBALS['main_prefix']);
 
 foreach ($this->sections as $section)
 	{
 	if ($section->name=='-')
 		{
-		fwrite($mfp,"\n\n-----------\n\n");
+		$docs['Home'].="\n\n-----------\n\n";
 		continue;
 		}
 	$url=$section->fname();
-	fwrite($mfp,"###- [".$section->name."]($url)\n");
-	$fpath="$output_dir/$url.md";
-	$fp=$this->open_page($fpath);
-	fwrite($fp,mstring($section->text)."\n");
+	$docs['Home'].="###- [".$section->name."]($url)\n";
+	$doc=mstring($section->text)."\n";
 	if (count($section->funcs))
 		{
-		fwrite($fp,"\n----------\n>###Functions\n");
+		$doc.="\n----------\n>###Functions\n";
 		foreach($section->funcs as $fname => $f)
 			{
 			$flinks[$fname]=$url.'#'.$fname;
-			fwrite($fp,"\n----------\n<a name=\"$fname\"></a>\n"
+			$doc.="\n----------\n<a name=\"$fname\"></a>\n"
 				.'##'.mstring($fname)."\n"
 				.'**'.mstring($f->summary)."**\n"
 				."\n".mstring($f->text)."\n"
-				."\n####Arguments\n");
+				."\n####Arguments\n";
 			if (count($f->args))
 				{
 				foreach($f->args as $arg)
-					fwrite($fp,"- ".mstring($arg->name).": ".mstring($arg->text)."\n");
+					$doc.="- ".mstring($arg->name).": ".mstring($arg->text)."\n";
 				}
-			else fwrite($fp,"None\n");
-			fwrite ($fp,"\n####Returns\n".mstring($f->returns)."\n"
-				."\n####Displays\n".mstring($f->displays)."\n");
+			else $doc.="None\n";
+			$doc.="\n####Returns\n".mstring($f->returns)."\n"
+				."\n####Displays\n".mstring($f->displays)."\n";
 			}
 		}
-	$this->close_page($fp);
+	$docs[$url]=$doc;
 	}
 
 //-- Finish main page
 
-fwrite($mfp,"\n\n-----------\n\n##[Function index](Index)\n\n");
+$docs['Home'].="\n\n-----------\n\n##[Function index](Index)\n\n";
 if (!is_null($GLOBALS['main_suffix']))
-	fwrite($mfp,file_get_contents($GLOBALS['main_suffix']));
-$this->close_page($mfp);
+	$docs['Home'].=file_get_contents($GLOBALS['main_suffix']);
+
+//-- Resolve function links
+
+echo("Resolving function links\n");
+
+foreach($docs as $name => $doc)
+	{
+	while(($pos=strpos($doc,'[flink:'))!==false)
+		{
+		$pos2=strpos($doc,']',$pos+7);
+		if ($pos2===false) die("Cannot find end of flink (section=$name, offset=$pos)");
+		$func=str_replace('\_','_',substr($doc,$pos+7,$pos2-$pos-7));
+		if (!array_key_exists($func,$flinks))
+			die("Unknown function ref (func=$func, section=$name, offset=$pos)");
+		$doc=substr_replace($doc,'['.str_replace('_','\\\\_',$func).']('.$flinks[$func].')',$pos,$pos2-$pos+1);
+		}
+	$docs[$name]=$doc;
+	}
 
 //-- Generate index
 
 ksort($flinks);
-$ifp=$this->open_page("$output_dir/Index.md");
-fwrite($ifp,"#Function index\n\n---------\n\n");
-foreach($flinks as $fname => $url) fwrite($ifp,mstring("- [$fname]($url)\n"));
-$this->close_page($ifp);
+$doc="#Function index\n\n---------\n\n";
+foreach($flinks as $fname => $url) $doc.=mstring("- [$fname]($url)\n");
+$docs['Index']=$doc;
+
+//-- Generate files
+
+foreach($docs as $name => $doc)
+	{
+	$fp=$this->open_page("$output_dir/$name.md");
+	fwrite($fp,$doc);
+	$this->close_page($fp);
+	}
 }
 
 //----------------

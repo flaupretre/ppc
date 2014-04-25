@@ -16,7 +16,6 @@ const RETURNS=5;	// In return
 const DISPLAYS=6;	// In display
 const NAME=7;		// Looking for func name
 
-
 //-----------
 
 public function __construct()
@@ -44,6 +43,10 @@ foreach(file($path) as $line)
 		continue;
 		}
 	$line=trim($line,"\n");
+	if ((($state!=self::OUT)&&($state!=self::NAME))&&(!is_comment($line)))
+		{
+		throw new Exception("Non-comment line should not appear here (file=$path, line=$lnum)");
+		}
 	switch ($state)
 		{
 		case self::OUT:
@@ -73,12 +76,16 @@ foreach(file($path) as $line)
 
 		case self::TEXT:
 			$line=trim_comments($line);
+			if (starts_with($line,'---'))
+				throw new Exception("Incomplete block ($path ($lnum))");
 			if (starts_with(trim($line),'Args:')) $state=self::ARGS;
 			else append_string($cfunc->text,$line);
 			break;
 
 		case self::ARGS:
 			$line=ltrim(trim_comments($line));
+			if (starts_with($line,'---'))
+				throw new Exception("Incomplete block ($path ($lnum))");
 			if (starts_with($line,'Returns:'))
 				{
 				$state=self::RETURNS;
@@ -97,7 +104,9 @@ foreach(file($path) as $line)
 
 		case self::RETURNS:
 			$line=ltrim(trim_comments($line));
-			if (starts_with($line,'Displays:'))
+			if (starts_with($line,'---'))
+				throw new Exception("Incomplete block ($path ($lnum))");
+			if (starts_with($line,'Displays:') || starts_with($line,'Display:'))
 				{
 				$state=self::DISPLAYS;
 				append_string($cfunc->displays,ltrim(substr($line,9)));
@@ -113,17 +122,26 @@ foreach(file($path) as $line)
 
 		case self::NAME:
 			// 2 possible syntaxes : 'func()' or 'function func'. 2nd is better
+			$line=trim($line);
+			if (is_comment($line)) break;
 			$funcname=null;
 			if (strpos($line,'()')!==false) $funcname=trim($line,"() \t");
-			if (strpos($line,'function ')===0) $funcname=trim(substr($line,9),"() \t");
+			if (starts_with($line,'function ')) $funcname=trim(substr($line,9),"() \t");
 			if (!is_null($funcname))
 				{
 				$cfunc->name=$funcname;
-				if (!is_null($csection)) $csection->add_func($cfunc);
+				if (is_null($csection))
+					throw new Exception("Function declared without section($path, line $lnum)");
+				else $csection->add_func($cfunc);
 				$state=self::OUT;
 				}
 			break;
 		}
+	}
+if ($state != self::OUT)
+	{
+	var_dump($cfunc);
+	throw new Exception("Function not terminated (state=$state, file=$path)");
 	}
 }
 
