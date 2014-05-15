@@ -112,13 +112,13 @@ echo("Resolving function links\n");
 
 foreach($docs as $name => $doc)
 	{
-	while(($pos=strpos($doc,'[flink:'))!==false)
+	while(($pos=strpos($doc,'[function:'))!==false)
 		{
-		$pos2=strpos($doc,']',$pos+7);
-		if ($pos2===false) die("Cannot find end of flink (section=$name, offset=$pos)");
-		$func=str_replace('\_','_',substr($doc,$pos+7,$pos2-$pos-7));
+		$pos2=strpos($doc,']',$pos+10);
+		if ($pos2===false) die("Cannot find end of function link (section=$name, offset=$pos)");
+		$func=str_replace('\_','_',substr($doc,$pos+10,$pos2-$pos-10));
 		if (!array_key_exists($func,$flinks))
-			die("Unknown function ref (func=$func, section=$name, offset=$pos)");
+			die("Link to unknown function: $func (section=$name, offset=$pos)");
 		$doc=substr_replace($doc,'['.str_replace('_','\\\\_',$func).']('.$flinks[$func].')',$pos,$pos2-$pos+1);
 		}
 	$docs[$name]=$doc;
