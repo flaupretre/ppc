@@ -4,7 +4,8 @@
 # Needs the following vars
 #
 # TARGETS : list of source files with a '.pub' suffix added (so, should end in
-#           '.htm.pub'.
+#           '.htm.pub' or '.md.pub'.
+#
 # PPC_DIR : the directory where this file resides
 #
 # PHP : the command to launch the PHP CLI interpreter (usually 'php')
@@ -15,23 +16,19 @@ PPC = $(PHP) $(PPC_DIR)/ppc.php
 
 #-----------------
 
-.PHONY: clean_pub
+.PHONY: clean_ppc
 
 all: $(TARGETS)
 
-clean_pub:
-	/bin/rm -rf $(TARGETS) _pub
+clean_ppc:
+	/bin/rm -rf $(TARGETS) _ppc
 
 #----------------
-# For historic reasons, ppc writes in a subdir named 'ppc'.
-# TODO : Add option to ppc to set subdir name
 
-%.htm.pub: %.htm
-	@[ -d ppc ] || mkdir ppc
-	$(PPC) $<
-	@[ -d _pub ] || mkdir _pub
-	mv ppc/_$< _pub/$@.htm
-	@touch $@
-	@rmdir ppc
+%.htm.ppc: %.htm
+	$(PPC) $< && touch $@
+
+%.md.ppc: %.md
+	$(PPC) $< && touch $@
 
 #----------------

@@ -35,9 +35,11 @@ $clear_prefixes=array();
 $main_prefix=$main_suffix=$global_footer=$global_header=null;
 $output_dir=null;
 
-$args=PHO_Getopt::readPHPArgv();
+//TODO: Replace with new Phool options class
+
+$args=\Phool\Options\Getopt::readPHPArgv();
 array_shift($args);
-list($options,$args2)=PHO_Getopt::getopt2($args,'Se:c:f:o:p:s:F:H:');
+list($options,$args2)=\Phool\Options\Getopt::getopt2($args,'Se:c:f:o:p:s:F:H:');
 foreach($options as $option)
 	{
 	list($opt,$val)=$option;
@@ -82,7 +84,7 @@ $source=$argv[$argc-1];
 $doc=new SH_Document();
 foreach($args2 as $source)
 	{
-	PHO_Display::info("Reading file $source");
+	\Phool\Display::info("Reading file $source");
 	$doc->read($source);
 	}
 if ($sort_flag) $doc->sort_functions();

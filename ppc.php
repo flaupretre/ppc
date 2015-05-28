@@ -18,49 +18,78 @@
 //
 //============================================================================
 
+require dirname(__FILE__).'/external/phool.phk';
+
+require dirname(__FILE__).'/external/Markdown/Michelf/MarkdownExtra.inc.php';
+
+require dirname(__FILE__).'/lib/ppc_Options.php';
+
+use \Michelf\MarkdownExtra;
+
+//----------------------------
+
 error_reporting(E_ALL);
 ini_set('display_errors',true);
 set_include_path('.:'.get_include_path());
 
-include dirname(__FILE__).'/config.php';
+require dirname(__FILE__).'/config.php';
 
 define('NL',"\n");
 
 //----------------------------
+$args=$_SERVER['argv'];
+array_shift($args);
+$op=new ppc_Options;
+$op->parseAll($args);
 
 $glob_toc=null;
 $glob_toc_string='';
 $tag=array(0,0,0,0,0,0,0,0,0);
+$ppc_target_dir=$op->option('target_dir');
+
 $GLOBALS['outputs']=$GLOBALS['out_array']=array();
 $GLOBALS['source_info']=array('source' => '', 'valid_on' => array());
 $GLOBALS['text_stack']=array();
+$GLOBALS['features']=array();
 
 add_output('mk','mk.sh.%');
 add_output('deps','deps.res.%');
 add_output('param','param.%');
 add_output('os_vars','os_vars.%');
 
-$GLOBALS['features']=array();
-
-array_shift($argv);
-
-foreach($argv as $source)
+foreach($args as $source)
 	{
 	unset($GLOBALS['notoc']);
-	$ppc_dir=((getenv('PPC_DIR')!==false)
-		? getenv('PPC_DIR') : dirname($source).'/ppc');
-	if (!is_dir($ppc_dir)) error("Le repertoire $ppc_dir n'existe pas");
 
-	echo "INFO: Processing $source\n";
-	ob_start();
-	$GLOBALS['source_stack']=array();
-	include_source($source); // interprete les codes PHP du document
-	$buf=ob_get_clean();
+	if (is_null($ppc_target_dir)) $ppc_target_dir=dirname($source).'/_ppc';
+	if (!is_dir($ppc_target_dir)) mkdir($ppc_target_dir,0777,true);
+
+	\Phool\Display::info("Processing $source");
+	
+	$buf=get_top_source($source);
+
+	if (\Phool\File::fileSuffix($source)=='md') $buf=convert_md($buf);
+
+	\Phool\Display::trace('Running PPC');
 	$buf=ppc($source,$buf);
+
 	if (!isset($GLOBALS['notoc']))
+		{
+		\Phool\Display::trace('Computing global TOC');
 		update_toc($source,$buf,$tag,$glob_toc_string);
-	$buf=botMosSmilies(correct_html($buf));
-	file_put_contents($ppc_dir.'/_'.basename($source),$buf);
+		}
+
+	$buf=fix_html($buf);
+
+	\Phool\Display::trace('Converting smileys');
+	$buf=botMosSmilies($buf);
+
+	/* Write file */
+
+	\Phool\Display::trace('Writing file');
+	$b=basename($source);
+	$target=$ppc_target_dir.'/'.substr($b,0,strrpos($b,'.')).'.ppc.htm';
+	file_put_contents($target,$buf);
 	}
 
 foreach($GLOBALS['outputs'] as $index => $file)
@@ -74,36 +103,110 @@ foreach($GLOBALS['outputs'] as $index => $file)
 			else continue;
 			}
 		else $f=$file;
-		if (DEBUG) echo "Writing $f\n";
-		file_put_contents($ppc_dir.'/'.$f,$GLOBALS['out_array'][$index]);
+		\Phool\Display::trace("Writing output: $f");
+		file_put_contents($ppc_target_dir.'/'.$f,$GLOBALS['out_array'][$index]);
 		}
 	}
 
 // Build global TOC file
 
 if (!is_null($glob_toc))
-   {
-   $glob_toc=dirname($ppc_file).'/'.$glob_toc;
-   $buf=file_get_contents($glob_toc);
-   toc_replace($buf,$glob_toc_string);
-   file_put_contents($ppc_dir.'/_'.basename($glob_toc),$buf);
-   }
+	{
+	\Phool\Display::trace("Building global TOC file");
+	$glob_toc=dirname($ppc_file).'/'.$glob_toc;
+	$buf=file_get_contents($glob_toc);
+	toc_replace($buf,$glob_toc_string);
+	file_put_contents($ppc_target_dir.'/_'.basename($glob_toc),$buf);
+	}
 
 exit(0);
 
 //=============================================================================
 
-function warning($msg)
+function fatal($msg)
 {
-fwrite(STDERR,"* WARNING : $msg\n");
+\Phool\Display::error($msg);
+exit(1);
 }
 
 //----------------------------
 
-function error($msg)
+function get_top_source($path)
 {
-fwrite(STDERR,"* ERROR : $msg\n");
-exit(1);
+\Phool\Display::trace('Executing PHP code embedded in the source');
+
+ob_start();
+$GLOBALS['source_stack']=array();
+include_source($path);
+$res=ob_get_clean();
+return $res;
+}
+
+//----------------------------
+
+function md_process_code($buf)
+{
+$lines=explode("\n",$buf);
+$in_code=false;
+
+foreach($lines as $lnum => &$line)
+	{
+	if ($in_code)
+		{
+		if (($line==='')||($line{0}=="\t"))
+			{
+			$line=htmlspecialchars(trim($line));
+			if ($line!=='') $last=$lnum;
+			$line.='<br/>';
+			}
+		else
+			{
+			for ($i=$last;$i<$lnum;$i++) $lines[$i]=substr($lines[$i],0,-5); //Suppress <br/>
+			$lines[$last] .= '{/}';
+			$in_code=false;
+			}
+		}
+	else
+		{
+		if ((strlen($line)<2)||($line{0}!=="\t")) continue;
+		if (substr(trim($line),0,1)==='<') continue;
+		$line=trim($line);
+		if ((strlen($line)>1)&&($line{0}=='\\')&&($line{1}=='<'))
+			$line=substr($line,1);
+		$line='{ppc:code}'.$line.'<br/>';
+		$last=$lnum;
+		$in_code=true;
+		}
+	}
+
+
+return implode("\n",$lines);
+}
+
+//----------------------------
+
+function convert_md($buf)
+{
+\Phool\Display::trace('Converting markdown source');
+
+$buf=preg_replace('/^    /',"\t",$buf); // Replace four leading spaces by tab
+
+$buf=md_process_code($buf);
+
+$buf=MarkdownExtra::defaultTransform($buf);
+
+$buf=str_replace(
+	array(
+		"<blockquote>\n  <p>"
+		,"</blockquote>"
+	),
+	array(
+		'<p>[:note] '
+		,''
+	),
+	$buf);
+
+return $buf;
 }
 
 //----------------------------
@@ -117,14 +220,14 @@ while (true)
 	if (($start=strpos($buf,'{ppc:'))===false) break;
 
 	if (($end=strpos($buf,'{/}'))===false)
-		{  echo substr($buf,$start,200)."\n"; error('Cannot find ppc end $buf'); }
-	if ($end<$start) error('end before start : '.substr($buf,$end,200)."\n");
+		{  echo substr($buf,$start,200)."\n"; fatal('Cannot find ppc end $buf'); }
+	if ($end<$start) fatal('end before start : '.substr($buf,$end,200)."\n");
 
 	if (($start2=strrpos(substr($buf,$start,$end-$start),'{ppc:'))!=0)
 		$start += $start2; // Correction si imbrication
 
 	if (($start_end=strpos($buf,'}',$start+5))===false)
-		error('Cannot find ppc start end');
+		fatal('Cannot find ppc start end');
 	$start_end++;
 	$string=trim(substr($buf,$start+5,$start_end-$start-6));
 	$plugin=strtok($string," \t");
@@ -143,7 +246,7 @@ while (true)
 		}
 
 	$buf_content=ppc($source,substr($buf,$start_end,$end-$start_end));
-	if (DEBUG) echo "Calling ppc:$plugin - content=<$buf_content>\n";
+	\Phool\Display::debug("Calling ppc:$plugin - content=<$buf_content>");
 	ob_start();
 	$func="ppc_$plugin";
 	$output='';
@@ -154,7 +257,7 @@ while (true)
 	if (isset($options['out']))
 		{
 		if ($options['out']===true) $options['out']='mk'; // Default script
-		if (DEBUG) echo "Writing to channel(s) : ".$options['out']."\n";
+		\Phool\Display::debug("Writing to channel(s) : ".$options['out']);
 		foreach(explode(',',$options['out']) as $key)
 			$GLOBALS['out_array'][$key] .= $output;
 		}
@@ -177,10 +280,11 @@ return $subject;
 }
 
 //-----------------------
-//-- Supprime les paragraphes vides
 
-function correct_html($buf)
+function fix_html($buf)
 {
+//-- Supprime les paragraphes vides les espaces en trop
+
 $buf=str_replace('<p/>','<p>',$buf);
 #$buf=str_replace('</p>','',$buf);
 $buf=str_replace("\r",'',$buf);
@@ -194,6 +298,10 @@ $buf=str_replace('<p><table ','<table ',$buf);
 $buf=str_replace("<p>\n<table ","\n<table ",$buf);
 $buf=str_replace("<p><h","<h",$buf);
 $buf=str_replace("<p>\n<h","\n<h",$buf);
+
+// Transforme '< ?php' en '<?php'
+
+$buf=str_replace('&lt; ?php',"&lt;?php",$buf);
 
 return $buf;
 }
@@ -242,7 +350,7 @@ return CODE_START.rawify1($buf).CODE_END;
 
 function add_output($key,$file)
 {
-if (DEBUG) echo "add_output: key=$key, file=$file\n";
+\Phool\Display::debug("add_output: key=$key, file=$file");
 $GLOBALS['outputs'][$key]=$file;
 $GLOBALS['out_array'][$key]='';
 }
@@ -331,8 +439,8 @@ if ((array_search('all',$a)===false)
 	&& isset($GLOBALS['OS_ID'])
 	&& (array_search($GLOBALS['OS_ID'],$a)===false))
 	{
-	fprintf(STDERR,"** Warning: ".$GLOBALS['source_info']['source']
-		." has not been validated on ".$GLOBALS['OS_ID']."\n");
+	\Phool\Display::warning($GLOBALS['source_info']['source']
+		." has not been validated on ".$GLOBALS['OS_ID']);
 	}
 
 $GLOBALS['source_info']=array_pop($GLOBALS['source_stack']);
@@ -488,7 +596,7 @@ foreach(explode(",",rawify($buf)) as $feature)
 	{
 	$feature=trim($feature);
 	if (isset($GLOBALS['features'][$feature]))
-		error("Feature <$feature> is already provided");
+		fatal("Feature <$feature> is already provided");
 	$GLOBALS['features'][$feature]=true;
 	}
 }
@@ -512,7 +620,7 @@ foreach(explode(",",$buf) as $feature)
 		{
 		echo '* Provided features : '
 			.implode(',',array_keys($GLOBALS['features']))."\n";
-		error("Feature <$feature> is required by "
+		fatal("Feature <$feature> is required by "
 			.$GLOBALS['source_info']['source']." but not present");
 		}
 	}
@@ -797,6 +905,13 @@ $botsmiley=array();
 
 return $buf;
 }
+
+//-------------------------------------------------------------------
+// Command line options
+
+
+
+
 
 //-------------------------------------------------------------------
 ?>
